@@ -29,13 +29,17 @@ function MathOptNLPModel(moimodel::MOI.ModelLike; kws...)
   return nlp_model(moimodel; kws...)[1]
 end
 
-function nlp_model(moimodel::MOI.ModelLike; hessian::Bool = true, name::String = "Generic")
+function nlp_model(moimodel::MOI.ModelLike;
+  hessian::Bool = true, hessprod::Bool = false, jtprod::Bool = false,
+  name::String = "Generic",
+  backend=MOI.Nonlinear.SparseReverseMode(),
+)
   index_map, nvar, lvar, uvar, x0 = parser_variables(moimodel)
   nlin, lincon, lin_lcon, lin_ucon, quadcon, quad_lcon, quad_ucon =
     parser_MOI(moimodel, index_map, nvar)
 
-  nlp_data = _nlp_block(moimodel)
-  nlcon = parser_NL(nlp_data, hessian = hessian)
+  nlp_data = _nlp_block(moimodel, backend)
+  nlcon = parser_NL(nlp_data, hessian = hessian, hessprod = hessprod, jtprod = jtprod)
   oracles = parser_oracles(moimodel)
   counters = Counters()
   λ = zeros(Float64, nlcon.nnln)  # Lagrange multipliers for hess_coord! and hprod! without y

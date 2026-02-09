@@ -557,7 +557,7 @@ function _nlp_model(model::MOI.ModelLike)::Union{Nothing, MOI.Nonlinear.Model}
   return nlp_model
 end
 
-function _nlp_block(model::MOI.ModelLike)
+function _nlp_block(model::MOI.ModelLike, backend)
   # Old interface with `@NL...`
   nlp_data = MOI.get(model, MOI.NLPBlock())
   # New interface with `@constraint` and `@objective`
@@ -566,10 +566,9 @@ function _nlp_block(model::MOI.ModelLike)
   if isnothing(nlp_data)
     if isnothing(nlp_model)
       evaluator =
-        MOI.Nonlinear.Evaluator(MOI.Nonlinear.Model(), MOI.Nonlinear.SparseReverseMode(), vars)
+        MOI.Nonlinear.Evaluator(MOI.Nonlinear.Model(), backend, vars)
       nlp_data = MOI.NLPBlockData(evaluator)
     else
-      backend = MOI.Nonlinear.SparseReverseMode()
       evaluator = MOI.Nonlinear.Evaluator(nlp_model, backend, vars)
       nlp_data = MOI.NLPBlockData(evaluator)
     end
@@ -594,13 +593,18 @@ Parse nonlinear constraints of an `nlp_data`.
 Returns:
 - nlcon: NonLinearStructure containing Jacobian and Hessian structures
 """
-function parser_NL(nlp_data; hessian::Bool = true)
+function parser_NL(nlp_data; hessian::Bool = true, hessprod::Bool = false, jtprod::Bool = false)
   nnln = length(nlp_data.constraint_bounds)
   nl_lcon = Float64[bounds.lower for bounds in nlp_data.constraint_bounds]
   nl_ucon = Float64[bounds.upper for bounds in nlp_data.constraint_bounds]
 
+  features = [:Grad, :Jac]
+  hessian && push!(features, :Hess)
+  hessprod && push!(features, :HessVec)
+  jtprod && push!(features, :JacVec)
+
   eval = nlp_data.evaluator
-  MOI.initialize(eval, hessian ? [:Grad, :Jac, :JacVec, :Hess, :HessVec] : [:Grad, :Jac, :JacVec])
+  MOI.initialize(eval, features)
 
   jac = MOI.jacobian_structure(eval)
   jac_rows, jac_cols = getindex.(jac, 1), getindex.(jac, 2)
